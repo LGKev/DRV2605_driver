@@ -43,10 +43,10 @@
 *.pdb
 
 #CCS files
-epaper_basic/Debug
+DRV2605_driver_example/Debug
 *.project
 startup_msp432p401r_ccs.c
-epaper_basic/targetConfigs
+DRV2605_driver_example/targetConfigs
 system_msp432p401r.c
 *.settings/org.eclipse.cdt.codan.core.prefs
 *.settings/org.eclipse.cdt.debug.core.prefs
