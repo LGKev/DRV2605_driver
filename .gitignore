@@ -53,6 +53,8 @@ system_msp432p401r.c
 ._.csproject
 .ccsproject
 .cproject
+DRV26-5_driver_example/targetConfigs
+*._.gitignore
 
 
 # Kernel Module Compile Results
