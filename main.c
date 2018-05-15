@@ -58,28 +58,16 @@ void main(void)
 	initHBLed();
 	initDriver();
 
-	uint32_t i;
     P7OUT |= BIT5;
 
 
 
 	while(1){
-	    //beatHeart(50);
+	 beatHeart(50);
 
-	//   DRVSingleWrite(0x01, 0xBB);
-	    //uint8_t i = 0;
-	    for(i=0; i<256; i++){
-	        DRVSingleWrite(0x01, BIT7 );
-	    }
+	   readRegister( DRV_DEFAULT_ADDRESS,  0x00, 1);
+	   //DRVSingleWrite(0x01, BIT7);
 
-	    /*
-
-	    UCB3I2CSA = DRV_DEFAULT_ADDRESS;
-	    UCB3TXBUF |= 0xAA;
-	    UCB3CTLW0 |= UCTXSTT;
-
-	    for(i = 0; i< 20000; i++);
-	*/
 	}
 
 

@@ -37,7 +37,11 @@ uint8_t DRVSingleWrite(uint8_t registerToWrite, uint8_t valueToWrite);
 
 void beginTransmission(uint8_t address);
 
-void stop_Transmission(uint8_t _address);
+void stopTransmission(void);
+
+void writeRegister(uint8_t address, uint8_t reg, uint8_t value);
+
+void readRegister(uint8_t address, uint8_t reg, uint8_t numBytes);
 
 
 #endif /* DRV2605_H_ */
