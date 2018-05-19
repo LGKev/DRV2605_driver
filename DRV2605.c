@@ -14,9 +14,7 @@ volatile uint8_t bytesExpectedToReceive = 0;
 volatile uint8_t indexRX = 0;
 volatile uint8_t I2CReceived[10]; //just picked 10 but it should be as small as possible
 
-
 void initDriver(void){
-
 
 
         UCB3CTLW0 = UCSWRST; //unlock
@@ -52,9 +50,51 @@ void initDriver(void){
      *      or change modes, change to RX mode?
      * */
     NVIC_EnableIRQ(EUSCIB3_IRQn);
-
 }
 
+void preAutoCalibrationLRA(void){
+    /* set up the feedback control register (3a) - (3c)  */
+    uint8_t valueToWrite = 0xB0 | 0x05; // equal to 0b1 011 01 01
+    writeRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R , valueToWrite);
+
+    /* set up rated voltage control register  NOTE: CLOSED_LOOP Only (3d)  */
+    valueToWrite = 0x3E; // default value, but what does this even correspond to in volts?
+    /* I don't think it actually is a voltage, but more of a scaling factor used in Equation 5.
+     * I don't know the frequency of the LRA and I have not set the sample time. how do I find
+     * the resonance frequency?
+     * TODO: f_LRA needs to be determined, recalculate this equation 5*/
+    writeRegister(DRV_DEFAULT_ADDRESS, RATED_VOLTAGE_R , valueToWrite);
+
+    /* set up  OVER DRIVE CLAMP control register (3e) */
+    valueToWrite = 0x8C; // TODO: use the default value until I find what f_LRA is
+    writeRegister(DRV_DEFAULT_ADDRESS, OVERDRIVE_CLAMP_V_R , valueToWrite); /* Responsible for max voltage in open loop, but allows for overshoot in closed loop */
+    /* default values for voltage and OD, with 200 hz resonant is 2.97 v max so it should be fine. unless resonant goes down. */
+
+    /* set up auto calibration time (500ms) , ZC_detect Time (100uS) Control Register 4  (3f) & (3k) */
+    valueToWrite = 0x20; // default values, 00 10 0000
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_4_R , valueToWrite);
+
+    /* set up Drive Time Control Register 1 (3g)  */
+    valueToWrite = 0x93; //default values TODO: find F_LRA then get period then recalculate this.
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_1_R, valueToWrite);
+
+    /* set up Sample_Time (200uS), Blanking Time (50uS), IDISS_time (50uS),  Control Register 2 (3h) - (3j)  */
+    valueToWrite = 0xDA; //0b11 01 10 10 default values;
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_2_R , valueToWrite);
+
+    /* Set the Go bit in 0x0C and then check the 4 registers:
+     *  - bemf_gain (register 0x1A) bits 1 and 0
+     *  - A_cal_comp (register  0x18)
+     *  - a_cal_bemf (0x19)
+     *  - diag_result == sucessful  calibration? */
+}
+
+
+
+void setGoBit(void){
+    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 0b01);
+    while(UCB3STATW & UCBBUSY);
+}
 
 uint8_t DRVSingleWrite(uint8_t registerToWrite, uint8_t valueToWrite){
     beginTransmission(DRV_DEFAULT_ADDRESS);
@@ -75,17 +115,23 @@ void stopTransmission(void){
     EUSCI_B3->CTLW0 |= UCTXSTP; //send stop command;
 }
 
+
+/* need to do a read modify write. */
 void writeRegister(uint8_t address, uint8_t reg, uint8_t value){
-    EUSCI_B3->CTLW0 |= UCTR;
-    beginTransmission(address);
     while(UCB3STATW & UCBBUSY); // wait while busy
+    UCB3I2CSA = address;
+    UCB3CTL0 |= UCTR | UCTXSTT;
+
+    while(UCB3CTLW0 & UCTXSTT); //soon as this is no longer true send the next thing
     UCB3TXBUF = reg;
-    while(UCB3STATW & UCBBUSY); // wait while busy
+    while(!(UCB3IFG & UCTXIFG0)); //when empty send next thing
+
     UCB3TXBUF = value;
-    stopTransmission();
+    while(!(UCB3IFG & UCTXIFG0)); //when empty send next thing
+    UCB3CTL0 |= UCTXSTP;
 }
 
-void readRegister(uint8_t address, uint8_t reg, uint8_t numBytes){
+uint8_t readRegister(uint8_t address, uint8_t reg){
 
     while(UCB3STAT & UCBBUSY); //wait if busy
        UCB3I2CSA = address;
@@ -100,35 +146,43 @@ void readRegister(uint8_t address, uint8_t reg, uint8_t numBytes){
        UCB3CTL0 |= UCTXSTT;
 
        while(UCB3CTLW0 & UCTXSTT);
-
-       /* collect and send stop command */
-       I2CReceived[0] = UCB3RXBUF;
+     //  while(!(UCB3IFG & UCRXIFG0));
        UCB3CTL0 |= UCTXSTP;
-    //beginTransmission(DRV_DEFAULT_ADDRESS);
+       /* collect the bytes requested, stuff into array, then send stop*/
+       uint8_t rxValue = UCB3RXBUF;
+       while(UCB3CTLW0 & UCTXSTP); //clear after stop been set and come out.
 
-
-  //  stopTransmission();
-
-
-
-  //  UCB3I2CSA = address;
-   // UCB3CTL0 |= UCTXSTT;
-
-    /*
-    UCB3CTL0 |= UCTR;
-    UCB3TXBUF = reg;
-    UCB3CTLW0 |= UCTXSTP;
-
-
-    UCB3CTL0 |= UCTXSTT; /* repeated start */
-
-    //UCB3CTL0 &=~UCTR; /* read mode */
-    //UCB3I2CSA = address;
-
-    bytesExpectedToReceive = numBytes;
-    indexRX = 0; /*global variable */
+       return rxValue;
 }
 
+
+/* Auto Calibration for LRA page 26 */
+/*  1) set to calibration mode : write to register 0x01 with 0x07
+ *  2) set the following registers:
+ *      0x1A:
+ *           bit7 = n_LRA
+ *           bit6 - bit4 = brake factor
+ *           bit3 - bit2 = loop gain
+ *           bit1 - bit0 = back emf gain
+ *      0x1B :
+ *          rated voltage
+ *          od_clamp
+ *          auto_calibration_time
+ *          drive time
+ *          sample time
+ *          blanking time
+ *          idiss_time
+ *          zc_Detect_time
+ *
+ *          then set go bit in 0x0c
+ *
+ *          check status register to see if any faults??! what short?
+ *
+ *
+ *
+ *
+ *
+ * */
 
 /* =====================================================================================================================================================*/
 /* ======================================================================================================================================================*/
@@ -265,3 +319,4 @@ void i2c_read_multi(uint8_t slv_addr, uint8_t reg_addr, uint8_t l, uint8_t *arr)
 
 }
  * */
+

@@ -24,7 +24,7 @@
  */
 
 
-
+extern uint8_t I2CReceived[10]; //just picked 10 but it should be as small as possible
 
 /* ======================================================================================================================================================*/
 /* ======================================================================================================================================================*/
@@ -58,18 +58,63 @@ void main(void)
 	initHBLed();
 	initDriver();
 
+ //   beatHeart(3000);
+
+
+	/* device reset 7th bit to 0x01 */
+	//writeRegister(DRV_DEFAULT_ADDRESS, 0x01, 0x80); //7th bit in binary
+
+
+	/* set up for auto calibration */
+	preAutoCalibrationLRA();
+	/* set go bit to start calibration  */
+	setGoBit();
+
+
+
+	// change modes
+	writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x00);
+	writeRegister(DRV_DEFAULT_ADDRESS, 0x03, 0x06); //lra libray select
+	writeRegister(DRV_DEFAULT_ADDRESS, 0x04, 118); //118 for long program click
+    setGoBit();
+
+
+	//LRA resonance is 127??
+
+	// comp result: 12 decimal, 0x0C
+	// auto bemf: 108
+
+#ifdef fixed
+   uint8_t a = readRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R); //0x1A
+   uint8_t aa = readRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R); //0x1A
+
+   uint8_t b = readRegister(DRV_DEFAULT_ADDRESS, STATUS_R); //0x00
+   uint8_t bb = readRegister(DRV_DEFAULT_ADDRESS, STATUS_R); //0x00
+
+   uint8_t c = readRegister(DRV_DEFAULT_ADDRESS, LRA_RESONANCE_R); //0x22
+   uint8_t cc = readRegister(DRV_DEFAULT_ADDRESS, LRA_RESONANCE_R); //0x22
+
+   uint8_t d =   readRegister(DRV_DEFAULT_ADDRESS, AUTO_CAL_COMP_RESULT_R); //0x18
+   uint8_t dd =   readRegister(DRV_DEFAULT_ADDRESS, AUTO_CAL_COMP_RESULT_R); //0x18
+
+   uint8_t e =   readRegister(DRV_DEFAULT_ADDRESS, AUTO_CAL_BEMF_RESULT_R); //0x19
+   uint8_t ee =   readRegister(DRV_DEFAULT_ADDRESS, AUTO_CAL_BEMF_RESULT_R); //0x19
+   uint8_t f = readRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R); //0x1A
+   uint8_t ff = readRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R); //0x1A
+   uint8_t fff = readRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R); //0x1A
+
+
+#endif
+
+
+
     P7OUT |= BIT5;
 
 
-
 	while(1){
-	 beatHeart(50);
+	 beatHeart(100);
 
-	   readRegister( DRV_DEFAULT_ADDRESS,  0x00, 1);
-	   //DRVSingleWrite(0x01, BIT7);
 
 	}
-
-
 }
 
