@@ -57,6 +57,7 @@ void main(void)
 
 	initHBLed();
 	initDriver();
+	//analogMode();
 
  //   beatHeart(3000);
 
@@ -66,19 +67,13 @@ void main(void)
 
 
 	/* set up for auto calibration */
-	preAutoCalibrationLRA();
-	/* set go bit to start calibration  */
-	setGoBit();
+	//preAutoCalibrationLRA();
 
+	//autoCalibrationLRA();
+	autoCalibrationERM();
+	//setAndPlay(118);
 
-
-	// change modes
-	writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x00);
-	writeRegister(DRV_DEFAULT_ADDRESS, 0x03, 0x06); //lra libray select
-	writeRegister(DRV_DEFAULT_ADDRESS, 0x04, 118); //118 for long program click
-    setGoBit();
-
-
+	beatHeart(500);
 	//LRA resonance is 127??
 
 	// comp result: 12 decimal, 0x0C
@@ -108,12 +103,41 @@ void main(void)
 
 
 
-    P7OUT |= BIT5;
-
 
 	while(1){
-	 beatHeart(100);
+      //  P7OUT |= PWM_PIN;
 
+	    beatHeart(100);
+    //    P7OUT &= ~PWM_PIN;
+
+	  //  analogMode();
+	   // setAndPlay(118);
+	    setAndPlay(98);
+        beatHeart(300);
+
+        setAndPlay(1);
+        beatHeart(300);
+
+        setAndPlay(46);
+        beatHeart(300);
+
+
+        setAndPlay(46);
+        beatHeart(300);
+
+        setAndPlay(27);
+        beatHeart(300);
+
+        setAndPlay(93);
+        beatHeart(300);
+        setAndPlay(12);
+        beatHeart(300);
+        setAndPlay(16);
+        beatHeart(300);
+        setAndPlay(80);
+        beatHeart(300);
+
+	    beatHeart(500);
 
 	}
 }

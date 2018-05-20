@@ -37,6 +37,7 @@ void initDriver(void){
 
        P7DIR |= BIT5 | BIT6; //outputs
        P7OUT |= BIT5; // enable! NOTE: remember to do this
+       P7OUT &= ~BIT6; // connect to ground for INT
 
        UCB3CTL0 &= ~UCSWRST; //lock
 
@@ -52,9 +53,83 @@ void initDriver(void){
     NVIC_EnableIRQ(EUSCIB3_IRQn);
 }
 
+
+void autoCalibrationLRA(void){
+    /* put into auto calibration mode: register 0x01 -> 0x07 */
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, AUTO_CALIBRATION_MODE);
+
+    /* Enter standby mode */
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, STANDBY);
+
+    /* SET RATED voltage 3v for motor refer to the setup guide. */
+    writeRegister(DRV_DEFAULT_ADDRESS, RATED_VOLTAGE_R, 0x60);
+
+    /* Set Over drive voltage */
+    writeRegister(DRV_DEFAULT_ADDRESS, OVERDRIVE_CLAMP_V_R, 0x96);
+
+    /* Fill in auto calibration registers  */
+    writeRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R, 0xB6);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_1_R, 0x13);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_2_R, 0xF5);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_3_R, 0x80);
+
+
+    /* library selection for ROM effects, library 6 for LRA */
+    writeRegister(DRV_DEFAULT_ADDRESS, LIBRARY_R, 0x06);
+
+    /* come out of standby mode  */
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x00);
+
+    /* send go bit */
+    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 1);
+
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, STANDBY);
+
+}
+
+void autoCalibrationERM(void){
+    /* put into auto calibration mode: register 0x01 pre config then auto calibrate  */
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x00);
+
+    /* SET RATED voltage 3v for motor refer to the setup guide. */
+    writeRegister(DRV_DEFAULT_ADDRESS, RATED_VOLTAGE_R, 0x90);
+
+    /* Set Over drive voltage */
+    writeRegister(DRV_DEFAULT_ADDRESS, OVERDRIVE_CLAMP_V_R, 0x96);
+
+    /* Fill in auto calibration registers  */
+    writeRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R, 0x36);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_1_R, 0x93);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_2_R, 0xF5);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_3_R, 0x80);
+
+
+    /* library selection for ROM effects, library 6 for LRA */
+    writeRegister(DRV_DEFAULT_ADDRESS, LIBRARY_R, 0x01);
+
+    /* come out of standby mode  */
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x07);
+
+    /* Fill in auto calibration registers   */
+       writeRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R, 0x36);
+       writeRegister(DRV_DEFAULT_ADDRESS, CTRL_1_R, 0x13);
+       writeRegister(DRV_DEFAULT_ADDRESS, CTRL_2_R, 0xF5);
+       writeRegister(DRV_DEFAULT_ADDRESS, CTRL_3_R, 0xA0);
+       writeRegister(DRV_DEFAULT_ADDRESS, CTRL_4_R, 0x20);
+
+    /* send go bit */
+    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 1);
+
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, STANDBY);
+}
+
+
 void preAutoCalibrationLRA(void){
     /* set up the feedback control register (3a) - (3c)  */
-    uint8_t valueToWrite = 0xB0 | 0x05; // equal to 0b1 011 01 01
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x07);
+
+
+    uint8_t valueToWrite = 0xB0 | 0x06; // equal to 0b1 011 01 01
     writeRegister(DRV_DEFAULT_ADDRESS, FB_CTRL_R , valueToWrite);
 
     /* set up rated voltage control register  NOTE: CLOSED_LOOP Only (3d)  */
@@ -66,7 +141,7 @@ void preAutoCalibrationLRA(void){
     writeRegister(DRV_DEFAULT_ADDRESS, RATED_VOLTAGE_R , valueToWrite);
 
     /* set up  OVER DRIVE CLAMP control register (3e) */
-    valueToWrite = 0x8C; // TODO: use the default value until I find what f_LRA is
+    valueToWrite = 0x89; // TODO: use the default value until I find what f_LRA is
     writeRegister(DRV_DEFAULT_ADDRESS, OVERDRIVE_CLAMP_V_R , valueToWrite); /* Responsible for max voltage in open loop, but allows for overshoot in closed loop */
     /* default values for voltage and OD, with 200 hz resonant is 2.97 v max so it should be fine. unless resonant goes down. */
 
@@ -87,13 +162,31 @@ void preAutoCalibrationLRA(void){
      *  - A_cal_comp (register  0x18)
      *  - a_cal_bemf (0x19)
      *  - diag_result == sucessful  calibration? */
+
+    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 1);
+
+}
+
+
+void setGoBit(void){
+    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 1);
+    while(UCB3STATW & UCBBUSY);
 }
 
 
 
-void setGoBit(void){
-    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 0b01);
-    while(UCB3STATW & UCBBUSY);
+void analogMode(void){
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, MODE_ANALOG_INPUT);
+    writeRegister(DRV_DEFAULT_ADDRESS, CTRL_3_R, 0x81);
+}
+
+void setAndPlay(uint8_t waveformID){
+    /* come out of standby */
+    writeRegister(DRV_DEFAULT_ADDRESS, MODE_R, 0x00); //internal trigger
+
+    writeRegister(DRV_DEFAULT_ADDRESS, 0x04, waveformID);
+
+    writeRegister(DRV_DEFAULT_ADDRESS, GO_R, 1);
 }
 
 uint8_t DRVSingleWrite(uint8_t registerToWrite, uint8_t valueToWrite){
@@ -118,7 +211,9 @@ void stopTransmission(void){
 
 /* need to do a read modify write. */
 void writeRegister(uint8_t address, uint8_t reg, uint8_t value){
-    while(UCB3STATW & UCBBUSY); // wait while busy
+
+    //while(UCB3STATW & UCBBUSY); // wait while busy
+    while(UCB3CTLW0 & UCTXSTT); //soon as this is no longer true send the next thing
     UCB3I2CSA = address;
     UCB3CTL0 |= UCTR | UCTXSTT;
 

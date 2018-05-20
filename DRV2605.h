@@ -24,9 +24,11 @@
 #define DEVICE_ID                   (0x20)
 
 #define MODE_R                      (0x01)
+#define AUTO_CALIBRATION_MODE       (0X07)
 #define MODE                        (0x00)
 #define STANDBY                     (0x40)  //2^6 ?? double check
 #define DEV_RESET                   (0x80)  //2^7
+#define MODE_ANALOG_INPUT           (0x03)
 
 
 #define RT_PLAYBACK_Q_R             (0x02)
@@ -120,6 +122,11 @@
 
 #define LRA_RESONANCE_R             (0x22)
 
+
+
+#define PWM_PIN                     0b00100000 //bit5 for port 7 pin 5
+
+
 /* ======================================================================================================================================================*/
 
 /*
@@ -139,6 +146,36 @@ void initDriver(void);
  * */
 void preAutoCalibrationLRA(void);
 
+
+/*
+ * @name: void autoCalibrationLRA(void)
+ * @brief: run this before playing waveforms, auto calibrates the specific motor to the driver
+ * @input: none
+ * @output: none
+ * starts the calibration
+ */
+void autoCalibrationLRA(void);
+
+/*  @name: void autoCalibrationERM(void)
+ *  @brief: auto calibration for an ERM motor, 3.3V peak and 3v rated erm
+ *  @inputt: none, values were calculated from this pdf:
+ *  http://www.ti.com/lit/an/sloa189/sloa189.pdf
+ *      for OD = A4 (3.6V) and Voltage Rating =90(3v)
+ *
+ */
+void autoCalibrationERM(void);
+
+/*
+ * @name: analogMode()
+ * @brief: sets the driver to receive analog voltage, does so until no longer in active mode. user must call standbyMode()
+ * to stop playback
+ * 1.8V is 100%
+ * 0.9v is 50%
+ * 0v is 0%
+ * */
+void analogMode(void);
+
+
 /*
  * @name: uint_8t DRVSingleWrite(uint8_t registerToWrite, uint8_t valueToWrite);
  * @brief: writes a single value to a specified register at the GLOBALLY DEFINED address.
@@ -155,6 +192,14 @@ uint8_t DRVSingleWrite(uint8_t registerToWrite, uint8_t valueToWrite);
  * @output: none
  * */
 void setGoBit(void);
+
+/* @name: setAndPlay(uint9_t waveformID)
+ * @brief: sets the waveform id from table into the memory for playback, sets the go bit, and plays
+ * @input: valid waveform id from 1  to 123
+ * @output: vibration
+ * Sets only one memory location. comes in and out of standby
+ * */
+void setAndPlay(uint8_t waveformID);
 
 
 typedef struct{
